@@ -9,7 +9,7 @@
   'use strict';
 
   // [lado maior mm, lado menor mm, resolução em dpi]
-  const PAPEIS = { A4: [297, 210, 250], A3: [420, 297, 200], A2: [594, 420, 150] };
+  const PAPEIS = { A4: [297, 210, 300], A3: [420, 297, 300], A2: [594, 420, 300] };
 
   const FONTES = {
     carto: {
