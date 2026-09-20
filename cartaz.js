@@ -151,9 +151,9 @@
       const S = Math.min((mapa.w * (1 - 2 * pad)) / bw, (mapa.h * (1 - 2 * pad)) / bh);
       return { pw, ph, u, m, fh, mapa, S };
     }
-    const L1 = layout(mm2px(longo), mm2px(curto)), L2 = layout(mm2px(curto), mm2px(longo));
-    const L = L1.S >= L2.S ? L1 : L2;
-    const paisagem = L.pw >= L.ph;
+    // Padroniza todos os cartazes em orientação horizontal (paisagem).
+    const L = layout(mm2px(longo), mm2px(curto));
+    const paisagem = true;
     const { u, m, fh, mapa, S } = L;
     const cx = mapa.x + mapa.w / 2, cy = mapa.y + mapa.h / 2;
     const toXY = (lat, lng) => { const [a, b] = proj(lat, lng); return [cx + (a - cu) * S, cy + (b - cv) * S]; };
