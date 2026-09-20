@@ -5,7 +5,7 @@ const ALAS_GEOJSON = {
   {
    "type": "Feature",
    "properties": {
-    "nome": "Ala 1 (renomear)",
+    "nome": "Ala Castelo",
     "cor": "#5FC28A"
    },
    "geometry": {
@@ -737,7 +737,7 @@ const ALAS_GEOJSON = {
   {
    "type": "Feature",
    "properties": {
-    "nome": "Ala 2 (renomear)",
+    "nome": "Ala Fortaleza",
     "cor": "#F2A65A"
    },
    "geometry": {
@@ -1169,7 +1169,7 @@ const ALAS_GEOJSON = {
   {
    "type": "Feature",
    "properties": {
-    "nome": "Ala 3 (renomear)",
+    "nome": "Ala Messejana",
     "cor": "#F5E663"
    },
    "geometry": {
@@ -2941,7 +2941,7 @@ const ALAS_GEOJSON = {
   {
    "type": "Feature",
    "properties": {
-    "nome": "Ala 4 (renomear)",
+    "nome": "Ala Palmeiras",
     "cor": "#FF6F61"
    },
    "geometry": {
@@ -4033,7 +4033,7 @@ const ALAS_GEOJSON = {
   {
    "type": "Feature",
    "properties": {
-    "nome": "Ala 5 (renomear)",
+    "nome": "Ala Jangurussú",
     "cor": "#EE4DA6"
    },
    "geometry": {
