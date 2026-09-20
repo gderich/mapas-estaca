@@ -775,7 +775,7 @@
       msgCartaz('Montando o arquivo…');
       const nome = 'cartaz-' + slug(sel ? sel.nome : 'todas-as-alas') + '-' + papel.toLowerCase();
       if (formato === 'pdf') {
-        const blob = await new Promise((res) => r.canvas.toBlob(res, 'image/jpeg', 0.92));
+        const blob = await new Promise((res) => r.canvas.toBlob(res, 'image/jpeg', 1.0));
         if (!blob) throw new Error('canvas-grande');
         const pdf = Cartaz.montarPdf(new Uint8Array(await blob.arrayBuffer()), r.canvas.width, r.canvas.height, r.largura_mm, r.altura_mm);
         baixar(nome + '.pdf', 'application/pdf', pdf);
