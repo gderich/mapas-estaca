@@ -245,8 +245,8 @@
       const [X, Y] = toXY(c.lat, c.lng);
       if (X < mapa.x || X > mapa.x + mapa.w || Y < mapa.y || Y > mapa.y + mapa.h) return;
       capelasVisiveis++;
-      iconeCapela(ctx, X, Y, 2.6 * u);
-      if (c.nome) rotulo(ctx, c.nome, X, Y + 4.6 * u, 2.7 * u, { cor: '#3B2566', peso: 600, fonte: FONTE_TEXTO });
+      // O símbolo e a legenda identificam a capela sem encobrir nomes de ruas.
+      iconeCapela(ctx, X, Y, 1.8 * u);
     });
 
     // ---- norte ----
