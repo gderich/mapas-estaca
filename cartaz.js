@@ -14,7 +14,7 @@
   const FONTES = {
     carto: {
       retina: true, maxZ: 20, credito: '© OpenStreetMap contributors © CARTO',
-      url: (z, x, y) => 'https://' + 'abcd'[(x + y) % 4] + '.basemaps.cartocdn.com/rastertiles/voyager/' + z + '/' + x + '/' + y + '@2x.png',
+      url: (z, x, y, key) => 'https://' + 'abcd'[(x + y) % 4] + '.basemaps.cartocdn.com/rastertiles/voyager/' + z + '/' + x + '/' + y + '@2x.png?key=' + encodeURIComponent(key || ''),
     },
     osm: {
       retina: false, maxZ: 19, credito: '© OpenStreetMap contributors',
@@ -189,7 +189,7 @@
       if (deps.cancelado && deps.cancelado()) throw new Error('cancelado');
       const xUrl = ((t.tx % nT) + nT) % nT;
       let img = null;
-      for (let tentativa = 0; tentativa < 2 && !img; tentativa++) img = await deps.carregarImagem(fonte.url(Zt, xUrl, t.ty));
+      for (let tentativa = 0; tentativa < 2 && !img; tentativa++) img = await deps.carregarImagem(fonte.url(Zt, xUrl, t.ty, cfg.cartoKey));
       if (img) {
         const [X, Y] = [cx + (t.tx / nT - cu) * S, cy + (t.ty / nT - cv) * S];
         const x0 = Math.floor(X), y0 = Math.floor(Y);
