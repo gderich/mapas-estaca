@@ -233,8 +233,8 @@
       ctx.lineJoin = 'round';
       ctx.lineWidth = 1.9 * u; ctx.strokeStyle = 'rgba(255,255,255,0.9)'; ctx.stroke();
       ctx.lineWidth = 0.95 * u; ctx.strokeStyle = escurecer(f.cor, 0.5); ctx.stroke();
-      const pt = pontoDeRotulo(polis);
-      if (pt) rotulo(ctx, f.nome, pt[0], pt[1], (unico ? 5.2 : 4.2) * u);
+      // O nome da ala já aparece no rodapé do cartaz.
+      // Não desenhar o rótulo central da ala em foco para não encobrir ruas.
     });
 
     rotulosOutras.forEach((r) => rotulo(ctx, r[0], r[1], r[2], 3.2 * u, { cor: '#4E626C', peso: 600 }));
