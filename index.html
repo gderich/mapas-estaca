@@ -212,9 +212,11 @@
 
   /* ---------- Capelas no mapa ---------- */
   .capela span {
-    display: block; width: 18px; height: 18px; border-radius: 50%;
-    background: var(--acento); border: 3px solid #071936; box-shadow: 0 1px 7px rgba(0,0,0,.45);
+    display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%;
+    background: var(--acento); border: 2px solid #071936;
+    box-shadow: 0 2px 8px rgba(0,0,0,.48);
   }
+  .capela svg { width: 21px; height: 21px; fill: #071936; }
 
   /* ---------- Janela do cartaz ---------- */
   dialog {
@@ -704,9 +706,10 @@
   /* ---------- Capelas (opcional: arquivo capelas.js) ---------- */
   const CAPELAS_LISTA = (typeof CAPELAS !== 'undefined' && Array.isArray(CAPELAS))
     ? CAPELAS.filter((c) => typeof c.lat === 'number' && typeof c.lng === 'number') : [];
+  const ICONE_CAPELA = '<span aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M11.35 2h1.3v3.15l1.55 1.2v2.4h4.3v2.05l2 1.35V22H3.5v-9.85l2-1.35V8.75h4.3v-2.4l1.55-1.2V2ZM10 22h4v-5.15a2 2 0 0 0-4 0V22Zm1-10.65h2V8.1l-1-.78-1 .78v3.25Z"/></svg></span>';
   CAPELAS_LISTA.forEach((c) => {
-    const mk = L.marker([c.lat, c.lng], { icon: L.divIcon({ className: 'capela', html: '<span></span>', iconSize: [18, 18] }), keyboard: false });
-    if (c.nome) mk.bindTooltip(c.nome, { direction: 'top', offset: [0, -8] });
+    const mk = L.marker([c.lat, c.lng], { icon: L.divIcon({ className: 'capela', html: ICONE_CAPELA, iconSize: [30, 30], iconAnchor: [15, 15] }), keyboard: false });
+    if (c.nome) mk.bindTooltip(c.nome, { direction: 'top', offset: [0, -16] });
     mk.addTo(mapa);
   });
 
