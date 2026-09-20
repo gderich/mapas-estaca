@@ -167,8 +167,6 @@
 
   .rodape { margin: 18px 0 0; font-size: .85rem; color: var(--tinta-2); }
 
-  .print-head { display: none; }
-
   /* ---------- Mapa ---------- */
   .rotulo-ala {
     background: transparent; border: 0; box-shadow: none;
@@ -186,19 +184,33 @@
     content: ""; position: absolute; inset: 6px; background: #fff; border-radius: 50%;
   }
 
-  /* ---------- Impressão (também aplicada na tela por ~1s ao clicar em Imprimir) ---------- */
-  @page { size: A4 landscape; margin: 12mm; }
-  body.imprimindo #app { display: block; height: auto; }
-  body.imprimindo .painel {
-    width: auto; height: auto; max-height: none; overflow: visible;
-    border: 0; padding: 0 0 6mm;
+  /* ---------- Capelas no mapa ---------- */
+  .capela span {
+    display: block; width: 18px; height: 18px; border-radius: 50%;
+    background: #5B3A8E; border: 2px solid #fff; box-shadow: 0 1px 5px rgba(0,0,0,.4);
   }
-  body.imprimindo .painel > *:not(.print-head) { display: none !important; }
-  body.imprimindo .print-head { display: block; }
-  body.imprimindo .print-head h2 { font-size: 20pt; margin: 0 0 2mm; }
-  body.imprimindo .print-head p { margin: 0; color: var(--tinta-2); }
-  body.imprimindo #mapa { width: 100%; height: 165mm; flex: none; }
-  body.imprimindo .leaflet-control-container { display: none; }
+
+  /* ---------- Janela do cartaz ---------- */
+  dialog {
+    border: 0; border-radius: 16px; padding: 22px 22px 18px;
+    width: min(460px, calc(100vw - 24px)); color: var(--tinta);
+    box-shadow: 0 18px 60px rgba(19,34,43,.35);
+  }
+  dialog::backdrop { background: rgba(19,34,43,.45); }
+  dialog h2 { font-size: 1.35rem; margin: 0 0 4px; }
+  .dlg-sub { margin: 0 0 14px; color: var(--tinta-2); font-size: .95rem; }
+  .linha { display: grid; gap: 4px; margin-bottom: 12px; }
+  .linha label, .check { font-weight: 600; font-size: .95rem; }
+  select {
+    height: 44px; border: 2px solid var(--linha); border-radius: 10px; padding: 0 10px; background: #fff; width: 100%;
+  }
+  select:focus { border-color: var(--acento); outline: none; box-shadow: 0 0 0 3px rgba(11,85,102,.2); }
+  .check { display: flex; align-items: center; gap: 10px; margin: 4px 0 14px; font-weight: 500; }
+  .check input { width: 20px; height: 20px; }
+  progress { width: 100%; height: 10px; margin: 2px 0 6px; accent-color: var(--acento); }
+  #dlgMsg { min-height: 1.4em; margin: 0 0 12px; font-size: .92rem; color: var(--tinta-2); }
+  #dlgMsg.erro { color: var(--alerta); font-weight: 500; }
+  .dica-cartaz { margin: 0 0 12px; font-size: .85rem; color: var(--tinta-2); }
 </style>
 </head>
 
@@ -238,24 +250,60 @@
         <div class="botoes">
           <button type="button" class="btn sec" id="btnKml">Baixar KML</button>
           <button type="button" class="btn sec" id="btnGeo">Baixar GeoJSON</button>
-          <button type="button" class="btn sec" id="btnImprimir">Imprimir ou salvar PDF</button>
+          <button type="button" class="btn" id="btnCartaz">Cartaz em PDF…</button>
         </div>
       </div>
     </section>
 
     <p class="rodape" id="rodape"></p>
 
-    <div class="print-head" id="printHead">
-      <h2 id="phTitulo"></h2>
-      <p id="phSub"></p>
-    </div>
   </aside>
 
   <main id="mapa" aria-label="Mapa das alas"></main>
 </div>
 
+<dialog id="dlgCartaz" aria-labelledby="dlgTitulo">
+  <h2 id="dlgTitulo">Cartaz</h2>
+  <p class="dlg-sub">Gera um mapa grande, com nomes de ruas, escala e legenda, pronto para imprimir.</p>
+
+  <div class="linha">
+    <label for="optPapel">Tamanho do papel</label>
+    <select id="optPapel">
+      <option value="A4">A4 (21 × 29,7 cm)</option>
+      <option value="A3" selected>A3 (29,7 × 42 cm)</option>
+      <option value="A2">A2 (42 × 59,4 cm)</option>
+    </select>
+  </div>
+  <div class="linha">
+    <label for="optDetalhe">Nomes de ruas</label>
+    <select id="optDetalhe">
+      <option value="padrao" selected>Padrão (letras maiores)</option>
+      <option value="alto">Mais detalhado (mais ruas, letras menores)</option>
+    </select>
+  </div>
+  <div class="linha">
+    <label for="optFundo">Mapa de fundo</label>
+    <select id="optFundo">
+      <option value="carto" selected>Ruas em alta resolução (CARTO)</option>
+      <option value="osm">OpenStreetMap padrão</option>
+    </select>
+  </div>
+  <label class="check" id="lblOutras"><input type="checkbox" id="optOutras" checked> Mostrar o contorno das outras alas</label>
+
+  <progress id="dlgProg" value="0" max="1" hidden></progress>
+  <p id="dlgMsg" role="status" aria-live="polite"></p>
+
+  <div class="botoes">
+    <button type="button" class="btn" id="btnGerarPdf">Gerar PDF</button>
+    <button type="button" class="btn sec" id="btnGerarPng">Gerar PNG</button>
+    <button type="button" class="link" id="btnFechar">Fechar</button>
+  </div>
+</dialog>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
 <script src="dados-alas.js"></script>
+<script src="capelas.js"></script>
+<script src="cartaz.js"></script>
 <script>
 (function () {
   'use strict';
@@ -264,7 +312,8 @@
   const CONFIG = {
     titulo: 'Em qual ala você ficará?',
     subtitulo: 'Digite seu endereço para ver a ala do novo alinhamento.',
-    nomeUnidade: 'Estaca',            // aparece no cabeçalho de impressão
+    nomeUnidade: 'Estaca Fortaleza Brasil Messejana', // aparece no rodapé do cartaz
+    subtituloCartaz: 'Novo alinhamento das alas',
     aviso: '',                        // ex.: 'Proposta sujeita à aprovação da presidência da estaca.'
     sufixoBusca: 'Fortaleza, Ceará, Brasil', // usado se a 1ª busca não achar nada
     margemMetros: 100,                // avisa se o endereço estiver a menos disso do limite
@@ -406,10 +455,8 @@
     const f = features.find((x) => x.id === selecionada);
     $('#detNome').textContent = f ? f.nome : 'Todas as alas';
     $('#detTexto').textContent = f
-      ? 'Baixe só o limite desta ala ou imprima o mapa.'
-      : 'Escolha uma ala acima para baixar ou imprimir só o mapa dela.';
-    $('#phTitulo').textContent = (f ? f.nome : 'Todas as alas') + ' — novos limites';
-    $('#phSub').textContent = CONFIG.nomeUnidade;
+      ? 'Gere o cartaz desta ala para imprimir, ou baixe só o limite dela.'
+      : 'Escolha uma ala acima para gerar o cartaz só dela.';
   }
   atualizarDetalhe();
 
@@ -605,23 +652,103 @@
     baixar(nomeArquivo() + '.geojson', 'application/geo+json', JSON.stringify(fc, null, 1));
   });
 
-  /* ---------- Imprimir ---------- */
-  function prepararImpressao() {
-    document.body.classList.add('imprimindo');
-    mapa.invalidateSize();
-    ajustar(false);
+  /* ---------- Capelas (opcional: arquivo capelas.js) ---------- */
+  const CAPELAS_LISTA = (typeof CAPELAS !== 'undefined' && Array.isArray(CAPELAS))
+    ? CAPELAS.filter((c) => typeof c.lat === 'number' && typeof c.lng === 'number') : [];
+  CAPELAS_LISTA.forEach((c) => {
+    const mk = L.marker([c.lat, c.lng], { icon: L.divIcon({ className: 'capela', html: '<span></span>', iconSize: [18, 18] }), keyboard: false });
+    if (c.nome) mk.bindTooltip(c.nome, { direction: 'top', offset: [0, -8] });
+    mk.addTo(mapa);
+  });
+
+  /* ---------- Cartaz (PDF / PNG em alta resolução) ---------- */
+  const dlg = $('#dlgCartaz');
+  let gerando = false, cancelar = false;
+
+  function msgCartaz(t, erro) { const m = $('#dlgMsg'); m.textContent = t || ''; m.className = erro ? 'erro' : ''; }
+  function carregarImagem(url) {
+    return new Promise((resolve) => {
+      const im = new Image();
+      const t = setTimeout(() => resolve(null), 20000);
+      im.crossOrigin = 'anonymous';
+      im.onload = () => { clearTimeout(t); resolve(im); };
+      im.onerror = () => { clearTimeout(t); resolve(null); };
+      im.src = url;
+    });
   }
-  $('#btnImprimir').addEventListener('click', () => {
-    definirStatus('');
-    prepararImpressao();
-    setTimeout(() => window.print(), 1300); // dá tempo de carregar o mapa no tamanho da folha
+  async function prepararFontes() {
+    try {
+      await Promise.all([
+        document.fonts.load('700 40px "Bricolage Grotesque"'), document.fonts.load('400 40px "Figtree"'),
+        document.fonts.load('500 40px "Figtree"'), document.fonts.load('600 40px "Figtree"'),
+      ]);
+    } catch (e) { /* usa fonte reserva */ }
+  }
+  function travar(sim) {
+    ['#btnGerarPdf', '#btnGerarPng', '#optPapel', '#optDetalhe', '#optFundo', '#optOutras'].forEach((s) => { $(s).disabled = sim; });
+  }
+
+  $('#btnCartaz').addEventListener('click', () => {
+    const f = features.find((x) => x.id === selecionada);
+    $('#dlgTitulo').textContent = f ? 'Cartaz: ' + f.nome : 'Cartaz: todas as alas';
+    $('#lblOutras').hidden = !f;
+    msgCartaz(''); $('#dlgProg').hidden = true; travar(false);
+    if (dlg.showModal) dlg.showModal(); else dlg.setAttribute('open', '');
   });
-  window.addEventListener('beforeprint', prepararImpressao);
-  window.addEventListener('afterprint', () => {
-    document.body.classList.remove('imprimindo');
-    mapa.invalidateSize();
-    ajustar(false);
-  });
+  $('#btnFechar').addEventListener('click', () => dlg.close());
+  dlg.addEventListener('close', () => { if (gerando) cancelar = true; });
+
+  async function gerar(formato) {
+    if (gerando) return;
+    gerando = true; cancelar = false; travar(true);
+    const sel = features.find((x) => x.id === selecionada);
+    const papel = $('#optPapel').value;
+    const prog = $('#dlgProg');
+    try {
+      msgCartaz('Preparando…'); prog.hidden = false; prog.value = 0; prog.max = 1;
+      await prepararFontes();
+      const r = await Cartaz.renderizar({
+        features: features.map((f) => ({ id: f.id, nome: f.nome, cor: f.cor, geometry: f.geometry })),
+        foco: sel ? [sel.id] : null,
+        capelas: CAPELAS_LISTA,
+        opcoes: { papel, detalhe: $('#optDetalhe').value, fundo: $('#optFundo').value, outras: $('#optOutras').checked },
+        texto: { unidade: CONFIG.nomeUnidade, subtitulo: CONFIG.subtituloCartaz, exemplo: !!ALAS_GEOJSON.exemplo },
+        deps: {
+          criarCanvas: (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; },
+          carregarImagem,
+          aoProgresso: (f, t) => { prog.max = t; prog.value = f; msgCartaz('Baixando o mapa… ' + f + ' de ' + t); },
+          cancelado: () => cancelar,
+        },
+      });
+      msgCartaz('Montando o arquivo…');
+      const nome = 'cartaz-' + slug(sel ? sel.nome : 'todas-as-alas') + '-' + papel.toLowerCase();
+      if (formato === 'pdf') {
+        const blob = await new Promise((res) => r.canvas.toBlob(res, 'image/jpeg', 0.92));
+        if (!blob) throw new Error('canvas-grande');
+        const pdf = Cartaz.montarPdf(new Uint8Array(await blob.arrayBuffer()), r.canvas.width, r.canvas.height, r.largura_mm, r.altura_mm);
+        baixar(nome + '.pdf', 'application/pdf', pdf);
+      } else {
+        const blob = await new Promise((res) => r.canvas.toBlob(res, 'image/png'));
+        if (!blob) throw new Error('canvas-grande');
+        baixar(nome + '.png', 'image/png', blob);
+      }
+      prog.hidden = true;
+      if (r.falhas > 0) {
+        msgCartaz('Arquivo baixado, mas ' + r.falhas + ' de ' + r.total + ' pedaços do mapa não carregaram (ficaram cinza). Tente de novo ou troque o mapa de fundo.', true);
+      } else {
+        msgCartaz('Pronto! O arquivo foi baixado.');
+      }
+    } catch (e) {
+      prog.hidden = true;
+      if (e && e.message === 'cancelado') msgCartaz('Cancelado.');
+      else if (e && e.message === 'canvas-grande') msgCartaz('Seu aparelho não conseguiu montar uma imagem tão grande. Tente o papel A4 ou use um computador.', true);
+      else msgCartaz('Não foi possível gerar o cartaz. Verifique sua conexão e tente de novo.', true);
+    } finally {
+      gerando = false; travar(false);
+    }
+  }
+  $('#btnGerarPdf').addEventListener('click', () => gerar('pdf'));
+  $('#btnGerarPng').addEventListener('click', () => gerar('png'));
 
   /* ---------- Textos gerais ---------- */
   $('#titulo').textContent = CONFIG.titulo;
