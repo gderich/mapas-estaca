@@ -759,11 +759,22 @@
     try {
       msgCartaz('Preparando…'); prog.hidden = false; prog.value = 0; prog.max = 1;
       await prepararFontes();
+      const fundoEscolhido = $('#optFundo').value;
+      let cartoKey = '';
+      if (fundoEscolhido === 'carto') {
+        cartoKey = localStorage.getItem('carto_basemap_key') || '';
+        if (!cartoKey) {
+          cartoKey = (prompt('Cole sua API key da CARTO para gerar o mapa:') || '').trim();
+          if (!cartoKey) throw new Error('carto-key');
+          localStorage.setItem('carto_basemap_key', cartoKey);
+        }
+      }
       const r = await Cartaz.renderizar({
         features: features.map((f) => ({ id: f.id, nome: f.nome, cor: f.cor, geometry: f.geometry })),
         foco: sel ? [sel.id] : null,
         capelas: CAPELAS_LISTA,
-        opcoes: { papel, detalhe: $('#optDetalhe').value, fundo: $('#optFundo').value, outras: $('#optOutras').checked },
+        opcoes: { papel, detalhe: $('#optDetalhe').value, fundo: fundoEscolhido, outras: $('#optOutras').checked },
+        cartoKey,
         texto: { unidade: CONFIG.nomeUnidade, subtitulo: CONFIG.subtituloCartaz, exemplo: !!ALAS_GEOJSON.exemplo },
         deps: {
           criarCanvas: (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; },
@@ -794,6 +805,7 @@
       prog.hidden = true;
       if (e && e.message === 'cancelado') msgCartaz('Cancelado.');
       else if (e && e.message === 'canvas-grande') msgCartaz('Seu aparelho não conseguiu montar uma imagem tão grande. Tente o papel A4 ou use um computador.', true);
+      else if (e && e.message === 'carto-key') msgCartaz('A API key da CARTO é necessária para usar esse mapa de fundo.', true);
       else msgCartaz('Não foi possível gerar o cartaz. Verifique sua conexão e tente de novo.', true);
     } finally {
       gerando = false; travar(false);
