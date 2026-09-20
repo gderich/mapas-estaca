@@ -4033,7 +4033,7 @@ const ALAS_GEOJSON = {
   {
    "type": "Feature",
    "properties": {
-    "nome": "Ala Jangurussú",
+    "nome": "Ala Parque Verde",
     "cor": "#EE4DA6"
    },
    "geometry": {
