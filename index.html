@@ -1,0 +1,644 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Em qual ala você ficará?</title>
+<meta name="description" content="Digite seu endereço e descubra a qual ala você pertencerá no novo alinhamento.">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Figtree:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css">
+
+<style>
+  :root {
+    --fundo: #EEF2F4;
+    --painel: #FFFFFF;
+    --tinta: #13222B;
+    --tinta-2: #51636C;
+    --linha: #D3DCE0;
+    --acento: #0B5566;
+    --acento-escuro: #083F4C;
+    --alerta: #7A2510;
+    --alerta-fundo: #FCE9E3;
+    --neutro-fundo: #E4EAED;
+    --fonte-titulo: "Bricolage Grotesque", "Trebuchet MS", system-ui, sans-serif;
+    --fonte: "Figtree", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    font-family: var(--fonte);
+    font-size: 16px;
+    line-height: 1.45;
+    color: var(--tinta);
+    background: var(--fundo);
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  button, input { font: inherit; color: inherit; }
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+  }
+  :focus-visible { outline: 3px solid var(--acento); outline-offset: 2px; }
+
+  /* ---------- Estrutura ---------- */
+  #app { height: 100vh; height: 100dvh; display: flex; flex-direction: column; }
+  .painel {
+    flex: none;
+    max-height: 54vh; max-height: 54dvh;
+    overflow-y: auto;
+    background: var(--painel);
+    border-bottom: 1px solid var(--linha);
+    padding: 14px 16px 12px;
+    z-index: 2;
+  }
+  #mapa { flex: 1; min-height: 0; background: #dfe7ea; }
+
+  @media (min-width: 900px) {
+    #app { flex-direction: row; }
+    .painel {
+      width: 430px; max-height: none; height: 100%;
+      border-bottom: 0; border-right: 1px solid var(--linha);
+      padding: 28px 26px 20px;
+    }
+  }
+
+  /* ---------- Cabeçalho ---------- */
+  h1 {
+    font-family: var(--fonte-titulo);
+    font-weight: 700;
+    font-size: 1.55rem;
+    line-height: 1.1;
+    letter-spacing: -0.01em;
+    margin: 0 0 4px;
+  }
+  .sub { margin: 0 0 12px; color: var(--tinta-2); }
+  @media (min-width: 900px) {
+    h1 { font-size: 2.1rem; }
+    .sub { margin-bottom: 18px; }
+  }
+
+  .aviso {
+    background: var(--alerta-fundo); color: var(--alerta);
+    border-radius: 10px; padding: 10px 12px; margin: 0 0 12px;
+    font-size: .92rem; font-weight: 500;
+  }
+
+  /* ---------- Busca ---------- */
+  .campo { display: flex; gap: 8px; }
+  .campo input {
+    flex: 1; min-width: 0; height: 48px;
+    border: 2px solid var(--linha); border-radius: 12px;
+    padding: 0 14px; background: #fff;
+  }
+  .campo input:focus { border-color: var(--acento); outline: none; box-shadow: 0 0 0 3px rgba(11,85,102,.2); }
+  .btn {
+    height: 48px; padding: 0 18px; border: 0; border-radius: 12px;
+    background: var(--acento); color: #fff; font-weight: 600; cursor: pointer;
+  }
+  .btn:hover { background: var(--acento-escuro); }
+  .btn:disabled { opacity: .6; cursor: wait; }
+  .btn.sec {
+    height: 44px; background: #fff; color: var(--acento);
+    border: 2px solid var(--acento); font-weight: 600;
+  }
+  .btn.sec:hover { background: #E7F1F3; }
+
+  .apoio { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; margin-top: 8px; font-size: .92rem; color: var(--tinta-2); }
+  .link {
+    background: none; border: 0; padding: 6px 0; cursor: pointer;
+    color: var(--acento); font-weight: 600; text-decoration: underline; text-underline-offset: 3px;
+  }
+
+  #status { min-height: 0; margin-top: 8px; font-size: .95rem; color: var(--tinta-2); }
+  #status:empty { display: none; }
+  #status.erro { color: var(--alerta); font-weight: 500; }
+
+  #outros { list-style: none; margin: 6px 0 0; padding: 0; font-size: .92rem; }
+  #outros li + li { border-top: 1px solid var(--linha); }
+  #outros button {
+    width: 100%; text-align: left; background: none; border: 0; cursor: pointer;
+    padding: 9px 2px; color: var(--tinta-2);
+  }
+  #outros button:hover { color: var(--acento); text-decoration: underline; }
+  #outros .titulo-outros { padding: 4px 2px; font-weight: 600; color: var(--tinta); }
+
+  /* ---------- Resultado ---------- */
+  #resultado { margin: 14px 0 4px; }
+  .bloco { border-radius: 14px; padding: 16px 18px 18px; }
+  .bloco .pre { margin: 0; font-size: .95rem; }
+  .bloco .nome {
+    font-family: var(--fonte-titulo); font-weight: 700;
+    font-size: clamp(2rem, 8vw, 2.7rem); line-height: 1.02; letter-spacing: -0.015em;
+    margin: 2px 0 8px;
+  }
+  .bloco .end { margin: 0; font-size: .9rem; opacity: .88; overflow-wrap: anywhere; }
+  .bloco.fora { background: var(--neutro-fundo); color: var(--tinta); }
+  .bloco.fora .nome { font-size: 1.35rem; line-height: 1.15; }
+  .nota {
+    margin: 8px 0 0; padding: 9px 12px; border-radius: 10px;
+    background: var(--alerta-fundo); color: var(--alerta); font-size: .92rem;
+  }
+  .nota.info { background: #E7F1F3; color: var(--acento-escuro); }
+
+  /* ---------- Lista de alas ---------- */
+  .alas { margin-top: 18px; }
+  h2 { font-family: var(--fonte-titulo); font-size: 1.1rem; margin: 0 0 8px; }
+  #listaAlas { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 8px;
+    min-height: 44px; padding: 0 14px 0 10px;
+    background: #fff; border: 2px solid var(--linha); border-radius: 999px; cursor: pointer;
+    font-weight: 500;
+  }
+  .chip:hover { border-color: var(--tinta-2); }
+  .chip[aria-pressed="true"] { border-color: var(--tinta); background: var(--tinta); color: #fff; }
+  .ponto { width: 16px; height: 16px; border-radius: 50%; border: 2px solid rgba(19,34,43,.55); flex: none; }
+  .chip[aria-pressed="true"] .ponto { border-color: #fff; }
+
+  #detalhe { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--linha); }
+  #detalhe h3 { font-family: var(--fonte-titulo); font-size: 1.05rem; margin: 0 0 4px; }
+  #detalhe p { margin: 0 0 10px; color: var(--tinta-2); font-size: .92rem; }
+  .botoes { display: flex; flex-wrap: wrap; gap: 8px; }
+
+  .rodape { margin: 18px 0 0; font-size: .85rem; color: var(--tinta-2); }
+
+  .print-head { display: none; }
+
+  /* ---------- Mapa ---------- */
+  .rotulo-ala {
+    background: transparent; border: 0; box-shadow: none;
+    font-family: var(--fonte-titulo); font-weight: 700; font-size: 14px; color: var(--tinta);
+    text-shadow: 0 0 3px #fff, 0 0 3px #fff, 0 0 5px #fff, 0 0 5px #fff;
+    white-space: nowrap; padding: 0;
+  }
+  .rotulo-ala::before { display: none; }
+  .pino span {
+    display: block; width: 26px; height: 26px; background: var(--tinta);
+    border: 3px solid #fff; border-radius: 50% 50% 50% 0; transform: rotate(-45deg);
+    box-shadow: 0 2px 7px rgba(0,0,0,.4); position: relative;
+  }
+  .pino span::after {
+    content: ""; position: absolute; inset: 6px; background: #fff; border-radius: 50%;
+  }
+
+  /* ---------- Impressão (também aplicada na tela por ~1s ao clicar em Imprimir) ---------- */
+  @page { size: A4 landscape; margin: 12mm; }
+  body.imprimindo #app { display: block; height: auto; }
+  body.imprimindo .painel {
+    width: auto; height: auto; max-height: none; overflow: visible;
+    border: 0; padding: 0 0 6mm;
+  }
+  body.imprimindo .painel > *:not(.print-head) { display: none !important; }
+  body.imprimindo .print-head { display: block; }
+  body.imprimindo .print-head h2 { font-size: 20pt; margin: 0 0 2mm; }
+  body.imprimindo .print-head p { margin: 0; color: var(--tinta-2); }
+  body.imprimindo #mapa { width: 100%; height: 165mm; flex: none; }
+  body.imprimindo .leaflet-control-container { display: none; }
+</style>
+</head>
+
+<body>
+<div id="app">
+  <aside class="painel">
+    <div class="aviso" id="aviso" hidden></div>
+
+    <header>
+      <h1 id="titulo">Em qual ala você ficará?</h1>
+      <p class="sub" id="subtitulo">Digite seu endereço para ver a ala do novo alinhamento.</p>
+    </header>
+
+    <form id="form" role="search" autocomplete="off">
+      <label for="q" class="sr-only">Seu endereço</label>
+      <div class="campo">
+        <input id="q" type="search" placeholder="Rua, número e bairro" enterkeyhint="search">
+        <button class="btn" type="submit" id="btnBuscar">Buscar</button>
+      </div>
+      <div class="apoio">
+        <button type="button" class="link" id="btnLocal">Usar minha localização</button>
+        <span>ou toque no mapa</span>
+      </div>
+    </form>
+
+    <div id="status" role="status" aria-live="polite"></div>
+    <section id="resultado" aria-live="polite" hidden></section>
+    <ul id="outros" hidden></ul>
+
+    <section class="alas" aria-labelledby="h-alas">
+      <h2 id="h-alas">Ver o mapa de cada ala</h2>
+      <ul id="listaAlas"></ul>
+
+      <div id="detalhe">
+        <h3 id="detNome"></h3>
+        <p id="detTexto"></p>
+        <div class="botoes">
+          <button type="button" class="btn sec" id="btnKml">Baixar KML</button>
+          <button type="button" class="btn sec" id="btnGeo">Baixar GeoJSON</button>
+          <button type="button" class="btn sec" id="btnImprimir">Imprimir ou salvar PDF</button>
+        </div>
+      </div>
+    </section>
+
+    <p class="rodape" id="rodape"></p>
+
+    <div class="print-head" id="printHead">
+      <h2 id="phTitulo"></h2>
+      <p id="phSub"></p>
+    </div>
+  </aside>
+
+  <main id="mapa" aria-label="Mapa das alas"></main>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<script src="dados-alas.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  /* ===================== CONFIGURAÇÃO ===================== */
+  const CONFIG = {
+    titulo: 'Em qual ala você ficará?',
+    subtitulo: 'Digite seu endereço para ver a ala do novo alinhamento.',
+    nomeUnidade: 'Estaca',            // aparece no cabeçalho de impressão
+    aviso: '',                        // ex.: 'Proposta sujeita à aprovação da presidência da estaca.'
+    sufixoBusca: 'Fortaleza, Ceará, Brasil', // usado se a 1ª busca não achar nada
+    margemMetros: 100,                // avisa se o endereço estiver a menos disso do limite
+    contato: 'Em caso de dúvida, fale com o bispado.',
+  };
+  const PALETA = ['#F5E663', '#FF6F61', '#EE4DA6', '#3FC8F0', '#8A78D0', '#5FC28A', '#F2A65A'];
+  /* ======================================================== */
+
+  const $ = (s) => document.querySelector(s);
+  const reduzir = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  if (typeof ALAS_GEOJSON === 'undefined' || !ALAS_GEOJSON.features) {
+    $('#titulo').textContent = 'Dados não encontrados';
+    $('#subtitulo').textContent = 'Confirme se o arquivo dados-alas.js está na mesma pasta que o index.html.';
+    return;
+  }
+
+  /* ---------- Dados ---------- */
+  const features = ALAS_GEOJSON.features
+    .filter((f) => f.geometry && (f.geometry.type === 'Polygon' || f.geometry.type === 'MultiPolygon'))
+    .map((f, i) => {
+      const p = f.properties || {};
+      const cor = /^#[0-9a-f]{6}$/i.test(p.cor || '') ? p.cor : PALETA[i % PALETA.length];
+      return { id: 'a' + i, nome: p.nome || p.name || 'Ala ' + (i + 1), cor, geometry: f.geometry, camada: null };
+    });
+
+  function poligonos(g) { return g.type === 'Polygon' ? [g.coordinates] : g.coordinates; }
+
+  /* ---------- Geometria ---------- */
+  function noAnel(x, y, anel) {
+    let dentro = false;
+    for (let i = 0, j = anel.length - 1; i < anel.length; j = i++) {
+      const xi = anel[i][0], yi = anel[i][1], xj = anel[j][0], yj = anel[j][1];
+      if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) dentro = !dentro;
+    }
+    return dentro;
+  }
+  function noPoligono(x, y, poly) {
+    if (!noAnel(x, y, poly[0])) return false;
+    for (let k = 1; k < poly.length; k++) if (noAnel(x, y, poly[k])) return false;
+    return true;
+  }
+  function contem(f, lat, lng) {
+    return poligonos(f.geometry).some((p) => noPoligono(lng, lat, p));
+  }
+  // distância aproximada (m) do ponto até a borda mais próxima
+  function distBorda(f, lat, lng) {
+    const kx = 111320 * Math.cos((lat * Math.PI) / 180), ky = 110540;
+    let min = Infinity;
+    poligonos(f.geometry).forEach((p) => p.forEach((anel) => {
+      for (let i = 0; i < anel.length - 1; i++) {
+        const ax = (anel[i][0] - lng) * kx, ay = (anel[i][1] - lat) * ky;
+        const bx = (anel[i + 1][0] - lng) * kx, by = (anel[i + 1][1] - lat) * ky;
+        const dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy;
+        let t = l2 ? -(ax * dx + ay * dy) / l2 : 0;
+        t = Math.max(0, Math.min(1, t));
+        const d = Math.hypot(ax + t * dx, ay + t * dy);
+        if (d < min) min = d;
+      }
+    }));
+    return min;
+  }
+
+  /* ---------- Cores ---------- */
+  function luminancia(hex) {
+    const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.substr(i, 2), 16) / 255)
+      .map((c) => (c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4)));
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  }
+  function tintaSobre(hex) { return luminancia(hex) > 0.18 ? '#13222B' : '#FFFFFF'; }
+  function escurecer(hex, f) {
+    f = f || 0.55;
+    return '#' + [1, 3, 5].map((i) => Math.round(parseInt(hex.substr(i, 2), 16) * f).toString(16).padStart(2, '0')).join('');
+  }
+
+  /* ---------- Mapa ---------- */
+  const mapa = L.map('mapa', { zoomControl: true });
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+  }).addTo(mapa);
+
+  features.forEach((f) => {
+    f.camada = L.geoJSON({ type: 'Feature', properties: {}, geometry: f.geometry }, {
+      style: { color: escurecer(f.cor), weight: 2.5, fillColor: f.cor, fillOpacity: 0.4 },
+      onEachFeature: (_feat, layer) => layer.bindTooltip(f.nome, { permanent: true, direction: 'center', className: 'rotulo-ala' }),
+    }).addTo(mapa);
+  });
+
+  let selecionada = null; // id da ala isolada, ou null para todas
+
+  function limitesAtuais() {
+    let b = null;
+    features.filter((f) => !selecionada || f.id === selecionada).forEach((f) => {
+      const bb = f.camada.getBounds();
+      b = b ? b.extend(bb) : L.latLngBounds(bb.getSouthWest(), bb.getNorthEast());
+    });
+    return b;
+  }
+  function ajustar(animar) {
+    const b = limitesAtuais();
+    if (b) mapa.fitBounds(b, { padding: [30, 30], animate: animar !== false && !reduzir });
+  }
+  ajustar(false);
+
+  new ResizeObserver(() => mapa.invalidateSize()).observe($('#mapa'));
+
+  /* ---------- Lista de alas / isolar ---------- */
+  const listaAlas = $('#listaAlas');
+  function criarChip(id, nome, cor) {
+    const li = document.createElement('li');
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'chip'; b.dataset.id = id || '';
+    b.setAttribute('aria-pressed', 'false');
+    const ponto = document.createElement('span');
+    ponto.className = 'ponto'; ponto.style.background = cor || 'conic-gradient(#F5E663,#FF6F61,#EE4DA6,#3FC8F0,#8A78D0,#F5E663)';
+    b.appendChild(ponto); b.appendChild(document.createTextNode(nome));
+    b.addEventListener('click', () => isolar(id));
+    li.appendChild(b); listaAlas.appendChild(li);
+  }
+  criarChip(null, 'Todas', null);
+  features.forEach((f) => criarChip(f.id, f.nome, f.cor));
+
+  function isolar(id) {
+    selecionada = id;
+    features.forEach((f) => {
+      const mostrar = !id || f.id === id;
+      if (mostrar && !mapa.hasLayer(f.camada)) f.camada.addTo(mapa);
+      if (!mostrar && mapa.hasLayer(f.camada)) mapa.removeLayer(f.camada);
+    });
+    ajustar();
+    atualizarDetalhe();
+  }
+
+  function atualizarDetalhe() {
+    document.querySelectorAll('.chip').forEach((b) => {
+      b.setAttribute('aria-pressed', String((b.dataset.id || null) === selecionada));
+    });
+    const f = features.find((x) => x.id === selecionada);
+    $('#detNome').textContent = f ? f.nome : 'Todas as alas';
+    $('#detTexto').textContent = f
+      ? 'Baixe só o limite desta ala ou imprima o mapa.'
+      : 'Escolha uma ala acima para baixar ou imprimir só o mapa dela.';
+    $('#phTitulo').textContent = (f ? f.nome : 'Todas as alas') + ' — novos limites';
+    $('#phSub').textContent = CONFIG.nomeUnidade;
+  }
+  atualizarDetalhe();
+
+  /* ---------- Marcador e resultado ---------- */
+  const icone = L.divIcon({ className: 'pino', html: '<span></span>', iconSize: [26, 26], iconAnchor: [13, 31] });
+  let marcador = null;
+
+  function definirStatus(msg, erro) {
+    const s = $('#status');
+    s.textContent = msg || '';
+    s.className = erro ? 'erro' : '';
+  }
+
+  function nota(texto, info) {
+    const p = document.createElement('p');
+    p.className = 'nota' + (info ? ' info' : '');
+    p.textContent = texto;
+    return p;
+  }
+
+  function marcar(lat, lng, rotulo, aproximado) {
+    if (marcador) mapa.removeLayer(marcador);
+    marcador = L.marker([lat, lng], { icon: icone, keyboard: false }).addTo(mapa);
+
+    const achadas = features.filter((f) => contem(f, lat, lng));
+    const menorDist = Math.min(...features.map((f) => distBorda(f, lat, lng)));
+
+    // Se a ala do endereço não estiver visível, volta a mostrar todas
+    if (selecionada && !achadas.some((f) => f.id === selecionada)) isolar(null);
+
+    const alvo = reduzir ? { animate: false } : { animate: true, duration: 0.8 };
+    mapa.setView([lat, lng], Math.max(mapa.getZoom(), 15), alvo);
+
+    const box = $('#resultado');
+    box.replaceChildren();
+    box.hidden = false;
+
+    const bloco = document.createElement('div');
+    const pre = document.createElement('p'); pre.className = 'pre';
+    const nome = document.createElement('p'); nome.className = 'nome';
+    const end = document.createElement('p'); end.className = 'end';
+    end.textContent = rotulo;
+
+    if (achadas.length) {
+      const f = achadas[0];
+      bloco.className = 'bloco';
+      bloco.style.background = f.cor;
+      bloco.style.color = tintaSobre(f.cor);
+      pre.textContent = 'No novo alinhamento, seu endereço fica na';
+      nome.textContent = f.nome;
+    } else {
+      bloco.className = 'bloco fora';
+      pre.textContent = 'Resultado';
+      nome.textContent = 'Este ponto está fora dos limites das alas.';
+    }
+    bloco.append(pre, nome, end);
+    box.appendChild(bloco);
+
+    if (achadas.length > 1) box.appendChild(nota('Os limites se sobrepõem neste ponto. ' + CONFIG.contato));
+    else if (!achadas.length) box.appendChild(nota(CONFIG.contato));
+    else if (menorDist <= CONFIG.margemMetros) {
+      box.appendChild(nota('Seu endereço está perto do limite entre alas. Confirme com o bispado.'));
+    }
+    if (aproximado) {
+      box.appendChild(nota('O endereço foi localizado só até a rua. Toque no mapa, no ponto exato da sua casa, para conferir.', true));
+    }
+    definirStatus('');
+  }
+
+  /* ---------- Busca de endereço (OpenStreetMap / Nominatim) ---------- */
+  let caixa = null;
+  (function () {
+    const b = limitesAtuais();
+    if (b) {
+      const m = 0.12;
+      caixa = [b.getWest() - m, b.getNorth() + m, b.getEast() + m, b.getSouth() - m].join(',');
+    }
+  })();
+
+  async function nominatim(q, restrito) {
+    const p = new URLSearchParams({ format: 'jsonv2', q, limit: '5', countrycodes: 'br', 'accept-language': 'pt-BR' });
+    if (restrito && caixa) { p.set('viewbox', caixa); p.set('bounded', '1'); }
+    const r = await fetch('https://nominatim.openstreetmap.org/search?' + p.toString());
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return r.json();
+  }
+
+  function rotuloCurto(r) { return r.display_name.split(',').slice(0, 4).join(',').trim(); }
+  function ehPreciso(r) { return r.category === 'building' || r.type === 'house' || r.addresstype === 'house'; }
+
+  function aplicar(r) {
+    marcar(parseFloat(r.lat), parseFloat(r.lon), rotuloCurto(r), !ehPreciso(r));
+  }
+
+  function mostrarOutros(lista) {
+    const ul = $('#outros');
+    ul.replaceChildren();
+    if (lista.length < 2) { ul.hidden = true; return; }
+    const cab = document.createElement('li'); cab.className = 'titulo-outros'; cab.textContent = 'Não é este? Outros resultados:';
+    ul.appendChild(cab);
+    lista.slice(1).forEach((r) => {
+      const li = document.createElement('li');
+      const b = document.createElement('button'); b.type = 'button'; b.textContent = rotuloCurto(r);
+      b.addEventListener('click', () => { aplicar(r); });
+      li.appendChild(b); ul.appendChild(li);
+    });
+    ul.hidden = false;
+  }
+
+  $('#form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const texto = $('#q').value.trim();
+    if (!texto) { definirStatus('Digite o endereço para buscar.', true); return; }
+    const btn = $('#btnBuscar');
+    btn.disabled = true; definirStatus('Buscando endereço…');
+    $('#outros').hidden = true;
+    try {
+      let res = await nominatim(texto, true);
+      if (!res.length) res = await nominatim(texto + ', ' + CONFIG.sufixoBusca, false);
+      if (!res.length) {
+        definirStatus('Não encontramos esse endereço. Tente só o nome da rua e o bairro, ou toque no mapa.', true);
+      } else {
+        aplicar(res[0]);
+        mostrarOutros(res);
+      }
+    } catch (err) {
+      definirStatus('Não foi possível buscar agora. Verifique sua conexão e tente de novo, ou toque no mapa.', true);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  $('#btnLocal').addEventListener('click', () => {
+    if (!navigator.geolocation) { definirStatus('Seu navegador não permite usar a localização.', true); return; }
+    definirStatus('Obtendo sua localização…');
+    navigator.geolocation.getCurrentPosition(
+      (pos) => { $('#outros').hidden = true; marcar(pos.coords.latitude, pos.coords.longitude, 'Sua localização atual', false); },
+      () => definirStatus('Não foi possível obter sua localização. Digite o endereço ou toque no mapa.', true),
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  });
+
+  mapa.on('click', (e) => {
+    $('#outros').hidden = true;
+    marcar(e.latlng.lat, e.latlng.lng, 'Ponto marcado no mapa', false);
+  });
+
+  /* ---------- Exportar ---------- */
+  function slug(t) {
+    return t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  }
+  function baixar(nome, tipo, conteudo) {
+    const url = URL.createObjectURL(new Blob([conteudo], { type: tipo }));
+    const a = document.createElement('a');
+    a.href = url; a.download = nome;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1500);
+  }
+  function selecao() { return features.filter((f) => !selecionada || f.id === selecionada); }
+  function nomeArquivo() { const s = selecao(); return s.length === 1 ? slug(s[0].nome) : 'todas-as-alas'; }
+
+  function esc(t) { return String(t).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' }[c])); }
+  function kmlCor(hex, alfa) { return alfa + hex.substr(5, 2) + hex.substr(3, 2) + hex.substr(1, 2); }
+  function coordsKml(anel) { return anel.map((c) => c[0] + ',' + c[1] + ',0').join(' '); }
+  function poligonoKml(poly) {
+    let s = '<Polygon><outerBoundaryIs><LinearRing><coordinates>' + coordsKml(poly[0]) + '</coordinates></LinearRing></outerBoundaryIs>';
+    for (let i = 1; i < poly.length; i++) s += '<innerBoundaryIs><LinearRing><coordinates>' + coordsKml(poly[i]) + '</coordinates></LinearRing></innerBoundaryIs>';
+    return s + '</Polygon>';
+  }
+  function gerarKml(lista) {
+    const titulo = lista.length === 1 ? lista[0].nome : 'Alas — novos limites';
+    let s = '<?xml version="1.0" encoding="UTF-8"?>\n<kml xmlns="http://www.opengis.net/kml/2.2"><Document><name>' + esc(titulo) + '</name>';
+    lista.forEach((f) => {
+      s += '<Style id="' + f.id + '"><LineStyle><color>' + kmlCor(escurecer(f.cor), 'ff') + '</color><width>3</width></LineStyle>' +
+           '<PolyStyle><color>' + kmlCor(f.cor, '66') + '</color></PolyStyle></Style>';
+    });
+    lista.forEach((f) => {
+      const polys = poligonos(f.geometry).map(poligonoKml).join('');
+      s += '<Placemark><name>' + esc(f.nome) + '</name><styleUrl>#' + f.id + '</styleUrl>' +
+           (f.geometry.type === 'Polygon' ? polys : '<MultiGeometry>' + polys + '</MultiGeometry>') + '</Placemark>';
+    });
+    return s + '</Document></kml>';
+  }
+
+  $('#btnKml').addEventListener('click', () => {
+    baixar(nomeArquivo() + '.kml', 'application/vnd.google-earth.kml+xml', gerarKml(selecao()));
+  });
+  $('#btnGeo').addEventListener('click', () => {
+    const fc = {
+      type: 'FeatureCollection',
+      features: selecao().map((f) => ({ type: 'Feature', properties: { nome: f.nome, cor: f.cor }, geometry: f.geometry })),
+    };
+    baixar(nomeArquivo() + '.geojson', 'application/geo+json', JSON.stringify(fc, null, 1));
+  });
+
+  /* ---------- Imprimir ---------- */
+  function prepararImpressao() {
+    document.body.classList.add('imprimindo');
+    mapa.invalidateSize();
+    ajustar(false);
+  }
+  $('#btnImprimir').addEventListener('click', () => {
+    definirStatus('');
+    prepararImpressao();
+    setTimeout(() => window.print(), 1300); // dá tempo de carregar o mapa no tamanho da folha
+  });
+  window.addEventListener('beforeprint', prepararImpressao);
+  window.addEventListener('afterprint', () => {
+    document.body.classList.remove('imprimindo');
+    mapa.invalidateSize();
+    ajustar(false);
+  });
+
+  /* ---------- Textos gerais ---------- */
+  $('#titulo').textContent = CONFIG.titulo;
+  $('#subtitulo').textContent = CONFIG.subtitulo;
+  document.title = CONFIG.titulo;
+  $('#rodape').textContent =
+    'O endereço digitado é enviado ao serviço de busca do OpenStreetMap só para achar o ponto no mapa; este site não guarda nada. ' + CONFIG.contato;
+
+  const aviso = $('#aviso');
+  if (ALAS_GEOJSON.exemplo) {
+    aviso.textContent = 'DADOS DE EXEMPLO: os limites abaixo são fictícios. Substitua o arquivo dados-alas.js antes de compartilhar.';
+    aviso.hidden = false;
+  } else if (CONFIG.aviso) {
+    aviso.textContent = CONFIG.aviso;
+    aviso.hidden = false;
+  }
+})();
+</script>
+</body>
+</html>
