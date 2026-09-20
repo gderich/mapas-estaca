@@ -17,12 +17,12 @@ const CAPELAS = [
     lng: -38.4958741,
   },
   {
-    nome: 'Capela Francisco Costa',
+    nome: 'Capela Fortaleza',
     lat: -3.84081031,
     lng: -38.51631124,
   },
   {
-    nome: 'Capela Valparaíso',
+    nome: 'Capela Palmeiras',
     lat: -3.8484077,
     lng: -38.511885,
   },
