@@ -186,22 +186,6 @@
   #sugestoes .sug-principal { display: block; font-weight: 700; }
   #sugestoes .sug-detalhe { display: block; margin-top: 2px; color: var(--tinta-2); font-size: .82rem; }
 
-  .pac-container {
-    z-index: 99999 !important; border: 1px solid rgba(233,188,145,.45);
-    border-radius: 12px; margin-top: 7px; overflow: hidden;
-    background: #10284C; box-shadow: 0 16px 34px rgba(0,0,0,.42);
-    font-family: var(--fonte);
-  }
-  .pac-item { padding: 10px 12px; border-top-color: var(--linha); color: var(--tinta-2); cursor: pointer; }
-  .pac-item:hover, .pac-item-selected { background: rgba(233,188,145,.12); }
-  .pac-item-query { color: var(--tinta); font-size: .95rem; }
-  .pac-matched { color: var(--acento); }
-  .pac-icon { display: none; }
-  #q.gm-err-autocomplete {
-    background-image: none !important;
-    background-color: #fff !important;
-    opacity: 1 !important;
-  }
 
   #outros { list-style: none; margin: 6px 0 0; padding: 0; font-size: .92rem; }
   #outros li + li { border-top: 1px solid var(--linha); }
@@ -695,21 +679,10 @@
 
   function rotuloCurto(r) { return r.display_name.split(',').slice(0, 4).join(',').trim(); }
 
-  /* Google Places é o buscador principal. Photon/Nominatim ficam como reserva
-     caso o Google não carregue ou não encontre o endereço. */
-  let googleAtivo = false;
-  let googleGeocoder = null;
-  let googleBounds = null;
+  /* TomTom é o buscador principal. O Nominatim/OpenStreetMap fica como reserva. */
+  const TOMTOM_KEY = 'drHMZDFcnxT2HRFlnaGfo5yVD1nvokof';
   let timerSugestoes = null;
   let controleSugestoes = null;
-
-  function rotuloPhoton(feature, numeroDigitado) {
-    const p = feature.properties || {};
-    const numero = p.housenumber || numeroDigitado;
-    const principal = [p.street || p.name, numero].filter(Boolean).join(', ');
-    const detalhe = [p.district || p.locality, p.city, p.state].filter(Boolean).join(' · ');
-    return { principal: principal || p.name || 'Endereço', detalhe };
-  }
 
   function esconderSugestoes() {
     const ul = $('#sugestoes');
@@ -717,14 +690,64 @@
     ul.replaceChildren();
   }
 
-  function mostrarSugestoes(features, textoDigitado) {
+  function rotuloTomTom(resultado) {
+    const a = resultado.address || {};
+    const principal = a.freeformAddress ||
+      [a.streetName || resultado.poi?.name, a.streetNumber].filter(Boolean).join(', ') ||
+      resultado.poi?.name || 'Endereço';
+    const detalhe = [a.municipalitySubdivision, a.municipality, a.countrySubdivision]
+      .filter((item, i, lista) => item && lista.indexOf(item) === i)
+      .join(' · ');
+    return { principal, detalhe };
+  }
+
+  function numeroTomTom(resultado) {
+    return normalizarNumero(resultado?.address?.streetNumber);
+  }
+
+  async function buscarTomTom(texto, opcoes = {}) {
+    const controlar = opcoes.controlar !== false;
+    if (controlar && controleSugestoes) controleSugestoes.abort();
+    const controle = controlar ? new AbortController() : null;
+    if (controlar) controleSugestoes = controle;
+
+    const centro = limitesAtuais()?.getCenter();
+    const p = new URLSearchParams({
+      key: TOMTOM_KEY,
+      limit: String(opcoes.limit || 8),
+      countrySet: 'BR',
+      language: 'pt-BR',
+      typeahead: opcoes.typeahead === false ? 'false' : 'true',
+      idxSet: 'PAD,Addr,Str',
+      maxFuzzyLevel: '3',
+    });
+    if (centro) {
+      p.set('lat', centro.lat.toFixed(6));
+      p.set('lon', centro.lng.toFixed(6));
+      p.set('radius', '45000');
+    }
+
+    const consulta = texto + (texto.toLowerCase().includes('fortaleza') ? '' : ', ' + CONFIG.sufixoBusca);
+    const url = 'https://api.tomtom.com/search/2/search/' + encodeURIComponent(consulta) + '.json?' + p.toString();
+    const resposta = await fetch(url, controle ? { signal: controle.signal } : {});
+    if (!resposta.ok) throw new Error('HTTP ' + resposta.status);
+    const dados = await resposta.json();
+    return (dados.results || []).filter((r) =>
+      Number.isFinite(r.position?.lat) && Number.isFinite(r.position?.lon)
+    );
+  }
+
+  function mostrarSugestoes(resultados, textoDigitado) {
     const ul = $('#sugestoes');
     ul.replaceChildren();
-
     const numeroDigitado = extrairNumero(textoDigitado);
+    const ordenados = [...resultados].sort((x, y) =>
+      Number(numeroTomTom(y) === numeroDigitado) - Number(numeroTomTom(x) === numeroDigitado)
+    );
     const vistos = new Set();
-    features.forEach((feature) => {
-      const rotulo = rotuloPhoton(feature, numeroDigitado);
+
+    ordenados.forEach((resultado) => {
+      const rotulo = rotuloTomTom(resultado);
       const chave = (rotulo.principal + '|' + rotulo.detalhe).toLowerCase();
       if (!rotulo.principal || vistos.has(chave)) return;
       vistos.add(chave);
@@ -733,7 +756,6 @@
       const botao = document.createElement('button');
       botao.type = 'button';
       botao.setAttribute('role', 'option');
-
       const principal = document.createElement('span');
       principal.className = 'sug-principal';
       principal.textContent = rotulo.principal;
@@ -743,140 +765,28 @@
       botao.append(principal, detalhe);
 
       botao.addEventListener('click', () => {
-        const p = feature.properties || {};
-        const numero = p.housenumber || numeroDigitado;
-        $('#q').value = [p.street || p.name, numero, p.district || p.locality].filter(Boolean).join(', ');
+        $('#q').value = rotulo.principal;
         esconderSugestoes();
-        $('#q').focus();
-        if (numero) $('#form').requestSubmit();
+        $('#outros').hidden = true;
+        const exato = !!numeroDigitado && numeroTomTom(resultado) === numeroDigitado;
+        if (numeroTomTom(resultado)) {
+          marcar(resultado.position.lat, resultado.position.lon, rotulo.principal, !exato);
+        } else {
+          $('#q').focus();
+          definirStatus('Escolha ou digite também o número do imóvel para localizar a casa com precisão.', true);
+        }
       });
-
       li.appendChild(botao);
       ul.appendChild(li);
     });
-
     ul.hidden = !ul.children.length;
   }
 
   async function buscarSugestoes(texto) {
-    if (controleSugestoes) controleSugestoes.abort();
-    controleSugestoes = new AbortController();
-
-    const centro = limitesAtuais()?.getCenter();
-    const p = new URLSearchParams({
-      q: texto + ', ' + CONFIG.sufixoBusca,
-      limit: '8',
-    });
-    if (centro) {
-      p.set('lat', centro.lat.toFixed(6));
-      p.set('lon', centro.lng.toFixed(6));
-    }
-
-    const r = await fetch('https://photon.komoot.io/api/?' + p.toString(), {
-      signal: controleSugestoes.signal,
-    });
-    if (!r.ok) throw new Error('HTTP ' + r.status);
-    const dados = await r.json();
-    mostrarSugestoes((dados.features || []).slice(0, 8), texto);
-  }
-
-  function iniciarGooglePlaces() {
-    if (!window.google?.maps?.places) return;
-
-    const input = $('#q');
-    const b = limitesAtuais();
-    if (b) {
-      googleBounds = new google.maps.LatLngBounds(
-        { lat: b.getSouth(), lng: b.getWest() },
-        { lat: b.getNorth(), lng: b.getEast() },
-      );
-    }
-
-    const autocomplete = new google.maps.places.Autocomplete(input, {
-      bounds: googleBounds || undefined,
-      componentRestrictions: { country: 'br' },
-      fields: ['formatted_address', 'geometry', 'name'],
-      strictBounds: false,
-      types: ['address'],
-    });
-
-    googleGeocoder = new google.maps.Geocoder();
-    googleAtivo = true;
-    esconderSugestoes();
-
-    setTimeout(() => {
-      if (input.classList.contains('gm-err-autocomplete')) restaurarCampoAposErroGoogle();
-    }, 800);
-
-    autocomplete.addListener('place_changed', () => {
-      const place = autocomplete.getPlace();
-      if (!place.geometry || !place.geometry.location) {
-        $('#form').requestSubmit();
-        return;
-      }
-      const lat = place.geometry.location.lat();
-      const lng = place.geometry.location.lng();
-      input.value = place.formatted_address || place.name || input.value;
-      esconderSugestoes();
-      $('#outros').hidden = true;
-      marcar(lat, lng, input.value, false);
-    });
-  }
-
-  function restaurarCampoAposErroGoogle() {
-    googleAtivo = false;
-    googleGeocoder = null;
-    const input = $('#q');
-    input.classList.remove('gm-err-autocomplete');
-    input.style.removeProperty('background-image');
-    input.style.removeProperty('background');
-    input.disabled = false;
-    input.readOnly = false;
-
-    const texto = input.value.trim();
-    if (texto.length >= 4) {
-      buscarSugestoes(texto).catch(() => esconderSugestoes());
-    }
-  }
-
-  function carregarGooglePlaces() {
-    window.gm_authFailure = restaurarCampoAposErroGoogle;
-    const script = document.createElement('script');
-    script.src = 'https://maps.googleapis.com/maps/api/js?key=AIzaSyA9FVULRGsc89dfBwY0EFFC6NgLfOEVJqo&libraries=places&language=pt-BR&region=BR&v=weekly';
-    script.async = true;
-    script.defer = true;
-    script.onload = () => {
-      setTimeout(() => {
-        if ($('#q').classList.contains('gm-err-autocomplete')) {
-          restaurarCampoAposErroGoogle();
-        } else {
-          iniciarGooglePlaces();
-        }
-      }, 250);
-    };
-    script.onerror = restaurarCampoAposErroGoogle;
-    document.head.appendChild(script);
-  }
-
-  function geocodificarGoogle(texto) {
-    return new Promise((resolve) => {
-      if (!googleGeocoder) { resolve(null); return; }
-      googleGeocoder.geocode({
-        address: texto + ', ' + CONFIG.sufixoBusca,
-        bounds: googleBounds || undefined,
-        componentRestrictions: { country: 'BR' },
-        region: 'BR',
-      }, (resultados, status) => {
-        resolve(status === 'OK' && resultados && resultados.length ? resultados[0] : null);
-      });
-    });
+    mostrarSugestoes(await buscarTomTom(texto, { typeahead: true, controlar: true }), texto);
   }
 
   $('#q').addEventListener('input', () => {
-    if (googleAtivo) {
-      esconderSugestoes();
-      return;
-    }
     clearTimeout(timerSugestoes);
     const texto = $('#q').value.trim();
     if (texto.length < 4) {
@@ -887,7 +797,7 @@
       buscarSugestoes(texto).catch((err) => {
         if (err.name !== 'AbortError') esconderSugestoes();
       });
-    }, 450);
+    }, 400);
   });
 
   $('#q').addEventListener('keydown', (e) => {
@@ -966,12 +876,12 @@
     btn.disabled = true; definirStatus('Buscando endereço…');
     $('#outros').hidden = true;
     try {
-      const resultadoGoogle = await geocodificarGoogle(texto);
-      if (resultadoGoogle && resultadoGoogle.geometry?.location) {
-        const lat = resultadoGoogle.geometry.location.lat();
-        const lng = resultadoGoogle.geometry.location.lng();
-        $('#q').value = resultadoGoogle.formatted_address || texto;
-        marcar(lat, lng, resultadoGoogle.formatted_address || texto, false);
+      const resultadosTomTom = await buscarTomTom(texto, { typeahead: false, controlar: false, limit: 10 });
+      const exatoTomTom = resultadosTomTom.find((r) => numeroTomTom(r) === numero);
+      if (exatoTomTom) {
+        const rotulo = rotuloTomTom(exatoTomTom).principal;
+        $('#q').value = rotulo;
+        marcar(exatoTomTom.position.lat, exatoTomTom.position.lon, rotulo, false);
         return;
       }
 
@@ -1173,14 +1083,13 @@
   $('#btnGerarPdf').addEventListener('click', () => gerar('pdf'));
   $('#btnGerarPng').addEventListener('click', () => gerar('png'));
 
-  carregarGooglePlaces();
 
   /* ---------- Textos gerais ---------- */
   $('#titulo').textContent = CONFIG.titulo;
   $('#subtitulo').textContent = CONFIG.subtitulo;
   document.title = CONFIG.titulo;
   $('#rodape').textContent =
-    'O endereço digitado é enviado aos serviços Google Maps ou OpenStreetMap apenas para localizar o ponto no mapa; este site não guarda nada. ' + CONFIG.contato;
+    'O endereço digitado é enviado aos serviços TomTom ou OpenStreetMap apenas para localizar o ponto no mapa; este site não guarda nada. ' + CONFIG.contato;
 
   const aviso = $('#aviso');
   if (ALAS_GEOJSON.exemplo) {
