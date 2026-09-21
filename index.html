@@ -197,6 +197,11 @@
   .pac-item-query { color: var(--tinta); font-size: .95rem; }
   .pac-matched { color: var(--acento); }
   .pac-icon { display: none; }
+  #q.gm-err-autocomplete {
+    background-image: none !important;
+    background-color: #fff !important;
+    opacity: 1 !important;
+  }
 
   #outros { list-style: none; margin: 6px 0 0; padding: 0; font-size: .92rem; }
   #outros li + li { border-top: 1px solid var(--linha); }
@@ -799,6 +804,10 @@
     googleAtivo = true;
     esconderSugestoes();
 
+    setTimeout(() => {
+      if (input.classList.contains('gm-err-autocomplete')) restaurarCampoAposErroGoogle();
+    }, 800);
+
     autocomplete.addListener('place_changed', () => {
       const place = autocomplete.getPlace();
       if (!place.geometry || !place.geometry.location) {
@@ -814,13 +823,38 @@
     });
   }
 
+  function restaurarCampoAposErroGoogle() {
+    googleAtivo = false;
+    googleGeocoder = null;
+    const input = $('#q');
+    input.classList.remove('gm-err-autocomplete');
+    input.style.removeProperty('background-image');
+    input.style.removeProperty('background');
+    input.disabled = false;
+    input.readOnly = false;
+
+    const texto = input.value.trim();
+    if (texto.length >= 4) {
+      buscarSugestoes(texto).catch(() => esconderSugestoes());
+    }
+  }
+
   function carregarGooglePlaces() {
+    window.gm_authFailure = restaurarCampoAposErroGoogle;
     const script = document.createElement('script');
     script.src = 'https://maps.googleapis.com/maps/api/js?key=AIzaSyA9FVULRGsc89dfBwY0EFFC6NgLfOEVJqo&libraries=places&language=pt-BR&region=BR&v=weekly';
     script.async = true;
     script.defer = true;
-    script.onload = iniciarGooglePlaces;
-    script.onerror = () => { googleAtivo = false; };
+    script.onload = () => {
+      setTimeout(() => {
+        if ($('#q').classList.contains('gm-err-autocomplete')) {
+          restaurarCampoAposErroGoogle();
+        } else {
+          iniciarGooglePlaces();
+        }
+      }, 250);
+    };
+    script.onerror = restaurarCampoAposErroGoogle;
     document.head.appendChild(script);
   }
 
