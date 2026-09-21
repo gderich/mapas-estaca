@@ -788,12 +788,16 @@
   }
 
   function numeroResultado(r) {
-    return normalizarNumero(r.address && (r.address.house_number || r.address.building));
+    if (r.address && r.address.house_number) return normalizarNumero(r.address.house_number);
+    const inicio = String(r.display_name || '').split(',')[0];
+    return /^\s*\d+[a-zA-Z]?\s*$/.test(inicio) ? normalizarNumero(inicio) : '';
   }
 
   function ehPreciso(r, numeroEsperado) {
-    const nivelImovel = r.category === 'building' || r.type === 'house' || r.addresstype === 'house';
-    return nivelImovel && !!numeroEsperado && numeroResultado(r) === numeroEsperado;
+    // O Nominatim pode classificar um endereço numerado como casa, edifício,
+    // condomínio, comércio ou equipamento. O que determina a precisão aqui
+    // é a confirmação explícita do mesmo número informado pelo usuário.
+    return !!numeroEsperado && numeroResultado(r) === numeroEsperado;
   }
 
   function aplicar(r) {
