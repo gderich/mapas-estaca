@@ -186,6 +186,18 @@
   #sugestoes .sug-principal { display: block; font-weight: 700; }
   #sugestoes .sug-detalhe { display: block; margin-top: 2px; color: var(--tinta-2); font-size: .82rem; }
 
+  .pac-container {
+    z-index: 99999 !important; border: 1px solid rgba(233,188,145,.45);
+    border-radius: 12px; margin-top: 7px; overflow: hidden;
+    background: #10284C; box-shadow: 0 16px 34px rgba(0,0,0,.42);
+    font-family: var(--fonte);
+  }
+  .pac-item { padding: 10px 12px; border-top-color: var(--linha); color: var(--tinta-2); cursor: pointer; }
+  .pac-item:hover, .pac-item-selected { background: rgba(233,188,145,.12); }
+  .pac-item-query { color: var(--tinta); font-size: .95rem; }
+  .pac-matched { color: var(--acento); }
+  .pac-icon { display: none; }
+
   #outros { list-style: none; margin: 6px 0 0; padding: 0; font-size: .92rem; }
   #outros li + li { border-top: 1px solid var(--linha); }
   #outros button {
@@ -678,8 +690,11 @@
 
   function rotuloCurto(r) { return r.display_name.split(',').slice(0, 4).join(',').trim(); }
 
-  /* Sugestões durante a digitação. O Photon é próprio para busca incremental;
-     a confirmação final do imóvel continua sendo feita pelo Nominatim. */
+  /* Google Places é o buscador principal. Photon/Nominatim ficam como reserva
+     caso o Google não carregue ou não encontre o endereço. */
+  let googleAtivo = false;
+  let googleGeocoder = null;
+  let googleBounds = null;
   let timerSugestoes = null;
   let controleSugestoes = null;
 
@@ -760,7 +775,74 @@
     mostrarSugestoes((dados.features || []).slice(0, 8), texto);
   }
 
+  function iniciarGooglePlaces() {
+    if (!window.google?.maps?.places) return;
+
+    const input = $('#q');
+    const b = limitesAtuais();
+    if (b) {
+      googleBounds = new google.maps.LatLngBounds(
+        { lat: b.getSouth(), lng: b.getWest() },
+        { lat: b.getNorth(), lng: b.getEast() },
+      );
+    }
+
+    const autocomplete = new google.maps.places.Autocomplete(input, {
+      bounds: googleBounds || undefined,
+      componentRestrictions: { country: 'br' },
+      fields: ['formatted_address', 'geometry', 'name'],
+      strictBounds: false,
+      types: ['address'],
+    });
+
+    googleGeocoder = new google.maps.Geocoder();
+    googleAtivo = true;
+    esconderSugestoes();
+
+    autocomplete.addListener('place_changed', () => {
+      const place = autocomplete.getPlace();
+      if (!place.geometry || !place.geometry.location) {
+        $('#form').requestSubmit();
+        return;
+      }
+      const lat = place.geometry.location.lat();
+      const lng = place.geometry.location.lng();
+      input.value = place.formatted_address || place.name || input.value;
+      esconderSugestoes();
+      $('#outros').hidden = true;
+      marcar(lat, lng, input.value, false);
+    });
+  }
+
+  function carregarGooglePlaces() {
+    const script = document.createElement('script');
+    script.src = 'https://maps.googleapis.com/maps/api/js?key=AIzaSyA9FVULRGsc89dfBwY0EFFC6NgLfOEVJqo&libraries=places&language=pt-BR&region=BR&v=weekly';
+    script.async = true;
+    script.defer = true;
+    script.onload = iniciarGooglePlaces;
+    script.onerror = () => { googleAtivo = false; };
+    document.head.appendChild(script);
+  }
+
+  function geocodificarGoogle(texto) {
+    return new Promise((resolve) => {
+      if (!googleGeocoder) { resolve(null); return; }
+      googleGeocoder.geocode({
+        address: texto + ', ' + CONFIG.sufixoBusca,
+        bounds: googleBounds || undefined,
+        componentRestrictions: { country: 'BR' },
+        region: 'BR',
+      }, (resultados, status) => {
+        resolve(status === 'OK' && resultados && resultados.length ? resultados[0] : null);
+      });
+    });
+  }
+
   $('#q').addEventListener('input', () => {
+    if (googleAtivo) {
+      esconderSugestoes();
+      return;
+    }
     clearTimeout(timerSugestoes);
     const texto = $('#q').value.trim();
     if (texto.length < 4) {
@@ -850,6 +932,15 @@
     btn.disabled = true; definirStatus('Buscando endereço…');
     $('#outros').hidden = true;
     try {
+      const resultadoGoogle = await geocodificarGoogle(texto);
+      if (resultadoGoogle && resultadoGoogle.geometry?.location) {
+        const lat = resultadoGoogle.geometry.location.lat();
+        const lng = resultadoGoogle.geometry.location.lng();
+        $('#q').value = resultadoGoogle.formatted_address || texto;
+        marcar(lat, lng, resultadoGoogle.formatted_address || texto, false);
+        return;
+      }
+
       let res = await nominatim(texto + ', ' + CONFIG.sufixoBusca, true);
       if (!res.length) res = await nominatim(texto + ', ' + CONFIG.sufixoBusca, false);
 
@@ -1048,12 +1139,14 @@
   $('#btnGerarPdf').addEventListener('click', () => gerar('pdf'));
   $('#btnGerarPng').addEventListener('click', () => gerar('png'));
 
+  carregarGooglePlaces();
+
   /* ---------- Textos gerais ---------- */
   $('#titulo').textContent = CONFIG.titulo;
   $('#subtitulo').textContent = CONFIG.subtitulo;
   document.title = CONFIG.titulo;
   $('#rodape').textContent =
-    'O endereço digitado é enviado ao serviço de busca do OpenStreetMap só para achar o ponto no mapa; este site não guarda nada. ' + CONFIG.contato;
+    'O endereço digitado é enviado aos serviços Google Maps ou OpenStreetMap apenas para localizar o ponto no mapa; este site não guarda nada. ' + CONFIG.contato;
 
   const aviso = $('#aviso');
   if (ALAS_GEOJSON.exemplo) {
