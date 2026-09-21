@@ -683,9 +683,10 @@
   let timerSugestoes = null;
   let controleSugestoes = null;
 
-  function rotuloPhoton(feature) {
+  function rotuloPhoton(feature, numeroDigitado) {
     const p = feature.properties || {};
-    const principal = [p.street || p.name, p.housenumber].filter(Boolean).join(', ');
+    const numero = p.housenumber || numeroDigitado;
+    const principal = [p.street || p.name, numero].filter(Boolean).join(', ');
     const detalhe = [p.district || p.locality, p.city, p.state].filter(Boolean).join(' · ');
     return { principal: principal || p.name || 'Endereço', detalhe };
   }
@@ -696,13 +697,14 @@
     ul.replaceChildren();
   }
 
-  function mostrarSugestoes(features) {
+  function mostrarSugestoes(features, textoDigitado) {
     const ul = $('#sugestoes');
     ul.replaceChildren();
 
+    const numeroDigitado = extrairNumero(textoDigitado);
     const vistos = new Set();
     features.forEach((feature) => {
-      const rotulo = rotuloPhoton(feature);
+      const rotulo = rotuloPhoton(feature, numeroDigitado);
       const chave = (rotulo.principal + '|' + rotulo.detalhe).toLowerCase();
       if (!rotulo.principal || vistos.has(chave)) return;
       vistos.add(chave);
@@ -722,10 +724,11 @@
 
       botao.addEventListener('click', () => {
         const p = feature.properties || {};
-        $('#q').value = [p.street || p.name, p.housenumber, p.district || p.locality].filter(Boolean).join(', ');
+        const numero = p.housenumber || numeroDigitado;
+        $('#q').value = [p.street || p.name, numero, p.district || p.locality].filter(Boolean).join(', ');
         esconderSugestoes();
         $('#q').focus();
-        if (p.housenumber) $('#form').requestSubmit();
+        if (numero) $('#form').requestSubmit();
       });
 
       li.appendChild(botao);
@@ -754,7 +757,7 @@
     });
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const dados = await r.json();
-    mostrarSugestoes((dados.features || []).slice(0, 8));
+    mostrarSugestoes((dados.features || []).slice(0, 8), texto);
   }
 
   $('#q').addEventListener('input', () => {
