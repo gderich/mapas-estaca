@@ -314,9 +314,10 @@
     <form id="form" role="search" autocomplete="off">
       <label for="q" class="sr-only">Seu endereço</label>
       <div class="campo">
-        <input id="q" type="search" placeholder="Rua, número e bairro" enterkeyhint="search">
+        <input id="q" type="search" placeholder="Rua, número e bairro" enterkeyhint="search" inputmode="text" aria-describedby="dicaEndereco">
         <button class="btn" type="submit" id="btnBuscar">Buscar</button>
       </div>
+      <p id="dicaEndereco" class="sr-only">Informe obrigatoriamente o número do imóvel para obter um resultado preciso.</p>
       <div class="apoio">
         <button type="button" class="link" id="btnLocal">Usar minha localização</button>
         <span>ou toque no mapa</span>
@@ -636,7 +637,15 @@
   })();
 
   async function nominatim(q, restrito) {
-    const p = new URLSearchParams({ format: 'jsonv2', q, limit: '5', countrycodes: 'br', 'accept-language': 'pt-BR' });
+    const p = new URLSearchParams({
+      format: 'jsonv2',
+      q,
+      limit: '10',
+      countrycodes: 'br',
+      addressdetails: '1',
+      dedupe: '0',
+      'accept-language': 'pt-BR',
+    });
     if (restrito && caixa) { p.set('viewbox', caixa); p.set('bounded', '1'); }
     const r = await fetch('https://nominatim.openstreetmap.org/search?' + p.toString());
     if (!r.ok) throw new Error('HTTP ' + r.status);
@@ -644,10 +653,43 @@
   }
 
   function rotuloCurto(r) { return r.display_name.split(',').slice(0, 4).join(',').trim(); }
-  function ehPreciso(r) { return r.category === 'building' || r.type === 'house' || r.addresstype === 'house'; }
+
+  function normalizarNumero(valor) {
+    return String(valor || '').toLowerCase().replace(/[^0-9a-z]/g, '');
+  }
+
+  function extrairNumero(texto) {
+    const partes = texto.match(/(?:^|[,\s])(?:n[º°o.]?\s*)?(\d+[a-zA-Z]?)(?=\s*(?:,|$|-))/i);
+    return partes ? normalizarNumero(partes[1]) : '';
+  }
+
+  function numeroResultado(r) {
+    return normalizarNumero(r.address && (r.address.house_number || r.address.building));
+  }
+
+  function ehPreciso(r, numeroEsperado) {
+    const nivelImovel = r.category === 'building' || r.type === 'house' || r.addresstype === 'house';
+    return nivelImovel && !!numeroEsperado && numeroResultado(r) === numeroEsperado;
+  }
 
   function aplicar(r) {
-    marcar(parseFloat(r.lat), parseFloat(r.lon), rotuloCurto(r), !ehPreciso(r));
+    marcar(parseFloat(r.lat), parseFloat(r.lon), rotuloCurto(r), false);
+  }
+
+  function solicitarPontoExato(r, numero) {
+    const box = $('#resultado');
+    box.hidden = true;
+    box.replaceChildren();
+    $('#app').classList.remove('resultado-aberto');
+
+    if (r) {
+      mapa.setView([parseFloat(r.lat), parseFloat(r.lon)], 17, reduzir ? { animate: false } : { animate: true });
+    }
+
+    definirStatus(
+      'Encontramos a rua, mas o número ' + numero + ' não foi confirmado com precisão. Para evitar indicar a ala errada, aproxime o mapa e toque exatamente sobre a casa.',
+      true,
+    );
   }
 
   function mostrarOutros(lista) {
@@ -669,17 +711,27 @@
     e.preventDefault();
     const texto = $('#q').value.trim();
     if (!texto) { definirStatus('Digite o endereço para buscar.', true); return; }
+    const numero = extrairNumero(texto);
+    if (!numero) {
+      definirStatus('Inclua o número do imóvel. A busca somente pelo nome da rua pode indicar uma ala incorreta.', true);
+      $('#q').focus();
+      return;
+    }
     const btn = $('#btnBuscar');
     btn.disabled = true; definirStatus('Buscando endereço…');
     $('#outros').hidden = true;
     try {
-      let res = await nominatim(texto, true);
+      let res = await nominatim(texto + ', ' + CONFIG.sufixoBusca, true);
       if (!res.length) res = await nominatim(texto + ', ' + CONFIG.sufixoBusca, false);
-      if (!res.length) {
-        definirStatus('Não encontramos esse endereço. Tente só o nome da rua e o bairro, ou toque no mapa.', true);
+
+      const exatos = res.filter((r) => ehPreciso(r, numero));
+      if (exatos.length) {
+        aplicar(exatos[0]);
+        mostrarOutros(exatos);
+      } else if (res.length) {
+        solicitarPontoExato(res[0], numero);
       } else {
-        aplicar(res[0]);
-        mostrarOutros(res);
+        definirStatus('Não encontramos esse imóvel. Confira rua, número e bairro ou toque exatamente sobre a casa no mapa.', true);
       }
     } catch (err) {
       definirStatus('Não foi possível buscar agora. Verifique sua conexão e tente de novo, ou toque no mapa.', true);
