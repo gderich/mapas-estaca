@@ -135,7 +135,8 @@
   }
 
   /* ---------- Busca ---------- */
-  .campo { display: flex; gap: 9px; position: relative; }
+  .busca-wrap { position: relative; z-index: 1000; }
+  .campo { display: flex; gap: 9px; }
   .campo input {
     flex: 1; min-width: 0; height: 48px;
     border: 1px solid rgba(255,255,255,.24); border-radius: 10px;
@@ -166,9 +167,11 @@
   #status.erro { color: var(--alerta); font-weight: 500; }
 
   #sugestoes {
-    list-style: none; margin: 7px 0 0; padding: 5px;
-    border: 1px solid var(--linha); border-radius: 12px;
-    background: #10284C; box-shadow: 0 12px 28px rgba(0,0,0,.28);
+    position: absolute; top: calc(100% + 7px); left: 0; right: 0; z-index: 1200;
+    max-height: min(320px, 46vh); overflow-y: auto;
+    list-style: none; margin: 0; padding: 5px;
+    border: 1px solid rgba(233,188,145,.45); border-radius: 12px;
+    background: #10284C; box-shadow: 0 16px 34px rgba(0,0,0,.42);
     font-size: .92rem;
   }
   #sugestoes li + li { border-top: 1px solid var(--linha); }
@@ -331,11 +334,13 @@
 
     <form id="form" role="search" autocomplete="off">
       <label for="q" class="sr-only">Seu endereço</label>
-      <div class="campo">
-        <input id="q" type="search" placeholder="Rua, número e bairro" enterkeyhint="search" inputmode="text" aria-describedby="dicaEndereco">
-        <button class="btn" type="submit" id="btnBuscar">Buscar</button>
+      <div class="busca-wrap">
+        <div class="campo">
+          <input id="q" type="search" placeholder="Rua, número e bairro" enterkeyhint="search" inputmode="text" aria-describedby="dicaEndereco" aria-controls="sugestoes" aria-autocomplete="list">
+          <button class="btn" type="submit" id="btnBuscar">Buscar</button>
+        </div>
+        <ul id="sugestoes" role="listbox" aria-label="Sugestões de endereço" hidden></ul>
       </div>
-      <ul id="sugestoes" role="listbox" aria-label="Sugestões de endereço" hidden></ul>
       <p id="dicaEndereco" class="sr-only">Informe obrigatoriamente o número do imóvel para obter um resultado preciso. Sugestões aparecerão enquanto você digita.</p>
       <div class="apoio">
         <button type="button" class="link" id="btnLocal">Usar minha localização</button>
@@ -737,8 +742,7 @@
     const centro = limitesAtuais()?.getCenter();
     const p = new URLSearchParams({
       q: texto + ', ' + CONFIG.sufixoBusca,
-      limit: '6',
-      lang: 'pt',
+      limit: '8',
     });
     if (centro) {
       p.set('lat', centro.lat.toFixed(6));
@@ -750,7 +754,7 @@
     });
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const dados = await r.json();
-    mostrarSugestoes((dados.features || []).slice(0, 6));
+    mostrarSugestoes((dados.features || []).slice(0, 8));
   }
 
   $('#q').addEventListener('input', () => {
@@ -764,7 +768,7 @@
       buscarSugestoes(texto).catch((err) => {
         if (err.name !== 'AbortError') esconderSugestoes();
       });
-    }, 550);
+    }, 450);
   });
 
   $('#q').addEventListener('keydown', (e) => {
